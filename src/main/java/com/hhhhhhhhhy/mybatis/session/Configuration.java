@@ -1,0 +1,136 @@
+package com.hhhhhhhhhy.mybatis.session;
+
+import com.hhhhhhhhhy.mybatis.binding.MapperRegistry;
+import com.hhhhhhhhhy.mybatis.dataSource.druid.DruidDataSourceFactory;
+import com.hhhhhhhhhy.mybatis.dataSource.pooled.PooledDataSourceFactory;
+import com.hhhhhhhhhy.mybatis.dataSource.unpooled.UnpooledDataSourceFactory;
+import com.hhhhhhhhhy.mybatis.executor.Executor;
+import com.hhhhhhhhhy.mybatis.executor.SimpleExecutor;
+import com.hhhhhhhhhy.mybatis.executor.resultset.DefaultResultSetHandler;
+import com.hhhhhhhhhy.mybatis.executor.resultset.ResultSetHandler;
+import com.hhhhhhhhhy.mybatis.executor.statement.PreparedStatementHandler;
+import com.hhhhhhhhhy.mybatis.executor.statement.StatementHandler;
+import com.hhhhhhhhhy.mybatis.mapping.BoundSql;
+import com.hhhhhhhhhy.mybatis.mapping.Environment;
+import com.hhhhhhhhhy.mybatis.mapping.MappedStatement;
+import com.hhhhhhhhhy.mybatis.transaction.Transaction;
+import com.hhhhhhhhhy.mybatis.transaction.jdbc.JdbcTransactionFactory;
+import com.hhhhhhhhhy.mybatis.type.TypeAliasRegistry;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * MyBatis 核心存储对象的配置类
+ * 存储 mybatis-config-datasource 解析的内容
+ * @author hhhhhhhhhy
+ * @Date 2023/3/13 13:00
+ */
+public class Configuration {
+
+    /**
+     * 环境变量
+     * 将 <environment> 标签里的内容解析到 Environment 对象里
+     */
+    protected Environment environment;
+
+    /**
+     * 映射注册机
+     */
+    protected MapperRegistry mapperRegistry = new MapperRegistry(this);
+
+    /**
+     * 类型别名注册机
+     */
+    protected final TypeAliasRegistry typeAliasRegistry = new TypeAliasRegistry();
+
+    /**
+     * 一级缓存
+     * 解析 mapper.xml 配置文件中解析出来的 sql 标签,每个 标签 都被解析成 MappedStatement
+     * key:statementId=namespace.id; value:封装好的 MappedStatement 对象
+     * Configuration 将所有的标签对象封装成 map 集合传递给底层 jdbc 进行使用
+     */
+    protected final Map<String, MappedStatement> mappedStatements = new HashMap<>();
+
+    public Configuration() {
+        typeAliasRegistry.registerAlias("JDBC", JdbcTransactionFactory.class);
+        typeAliasRegistry.registerAlias("DRUID", DruidDataSourceFactory.class);
+        typeAliasRegistry.registerAlias("POOLED", PooledDataSourceFactory.class);
+        typeAliasRegistry.registerAlias("UNPOOLED", UnpooledDataSourceFactory.class);
+    }
+
+    public void addMappers(String packageName) {
+        mapperRegistry.addMappers(packageName);
+    }
+
+    public <T> void addMapper(Class<T> type) {
+        mapperRegistry.addMapper(type);
+    }
+
+    public <T> T getMapper(Class<T> type, SqlSession sqlSession) {
+        return mapperRegistry.getMapper(type, sqlSession);
+    }
+
+    public boolean hasMapper(Class<?> type) {
+        return mapperRegistry.hasMapper(type);
+    }
+
+    /**
+     * 优雅方式封装 mappedStatement 到 Configuration，直接调用这个方法进行参数传递即可
+     * @param ms
+     */
+    public void addMappedStatement(MappedStatement ms) {
+        mappedStatements.put(ms.getId(), ms);
+    }
+
+    /**
+     * 通过 mappedStatementId 获取具体 MappedStatement 对象
+     * @param id
+     * @return
+     */
+    public MappedStatement getMappedStatement(String id) {
+        return mappedStatements.get(id);
+    }
+
+    public Environment getEnvironment() {
+        return environment;
+    }
+
+    public void setEnvironment(Environment environment) {
+        this.environment = environment;
+    }
+
+    public MapperRegistry getMapperRegistry() {
+        return mapperRegistry;
+    }
+
+    public TypeAliasRegistry getTypeAliasRegistry() {
+        return typeAliasRegistry;
+    }
+
+    /**
+     * 创建结果集处理器
+     * @return
+     * @param executor
+     * @param mappedStatement
+     * @param boundSql
+     */
+    public ResultSetHandler newResultSetHandler(Executor executor, MappedStatement mappedStatement, BoundSql boundSql) {
+        return new DefaultResultSetHandler(executor, mappedStatement, boundSql);
+    }
+
+    /**
+     * 创建执行器
+     */
+    public Executor newExecutor(Transaction transaction) {
+        return new SimpleExecutor(this, transaction);
+    }
+
+    /**
+     * 创建 statement 对象处理器进行 sql 参数预处理
+     */
+    public StatementHandler newStatementHandler(Executor executor, MappedStatement mappedStatement, Object parameter, ResultHandler resultHandler, BoundSql boundSql) {
+        return new PreparedStatementHandler(executor, mappedStatement, parameter, resultHandler, boundSql);
+    }
+
+}
